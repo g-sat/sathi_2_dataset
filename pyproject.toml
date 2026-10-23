@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "saathi-synthetic-sequences"
+version = "0.1.0"
+description = "Config-driven synthetic variable-length event sequences for Parquet and PyTorch."
+requires-python = ">=3.11"
+dependencies = [
+    "numpy",
+    "pyarrow",
+    "pyyaml",
+    "pydantic>=2",
+    "pandas>=2.1.1",
+    "pandera",
+    "torch",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[tool.setuptools]
+packages = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

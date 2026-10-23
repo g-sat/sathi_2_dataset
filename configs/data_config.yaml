@@ -1,0 +1,59 @@
+# Simulated South Asian meal trajectories for glucose-control pretraining.
+# Each patient is one timeline: foods in order, then the simulated glucose
+# change after each food. y_class is a nutrition adjustment from that same
+# simulation. This is not a medical device.
+seed: 42
+n_sequences: 10000
+chunk_size: 2048
+num_workers: 4
+output_dir: data/synthetic
+
+splits:
+  train: 0.8
+  validation: 0.1
+  test: 0.1
+
+# Each person log is 100 to 1000 individual food items.
+lengths:
+  min_len: 100
+  max_len: 1000
+  lognormal_mu: 5.7
+  lognormal_sigma: 0.40
+
+population:
+  diet_pattern_probs: [0.12, 0.10, 0.09, 0.06, 0.13, 0.10, 0.08, 0.06, 0.09, 0.10, 0.07]
+  age_min: 28
+  age_max: 70
+  bmi_mean: 25.5
+  bmi_sigma: 3.8
+  bmi_min: 17
+  bmi_max: 38
+  family_history_rate: 0.35
+  portion_sigma: 0.15
+  walk_rate: 0.40
+  missing_rate: 0.08
+
+glucose:
+  carb_coefficient: 2.2
+  sugar_coefficient: 1.1
+  protein_coefficient: 0.40
+  fat_coefficient: 0.20
+  walk_coefficient: 0.40
+  excursion_noise: 8.0
+  two_hour_fraction: 0.75
+  target_mgdl: 140
+
+labels:
+  flip_rate: 0.04
+  sugar_cut_grams: 8
+  refined_gi: 65
+  refined_carb_grams: 25
+  fiber_gap_grams: 4
+  low_protein_grams: 8
+  high_carb_grams: 30
+
+checks:
+  missing_rate_min: 0.01
+  missing_rate_max: 0.25
+  glucose_min: 70
+  glucose_max: 280
