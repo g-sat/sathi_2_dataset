@@ -227,6 +227,44 @@ N_ACTIONS = len(ACTION_NAMES)
 
 MIN_ITEMS = 100
 MAX_ITEMS = 1000
+ESTIMATION_METHOD = "simulator_estimate"
+QUALITY_FLAG = "not_a_laboratory_assay"
+
+_LOCAL_NAMES: dict[str, str] = {
+    "steamed_white_rice": "chawal",
+    "cooked_brown_rice": "bhura chawal",
+    "millet_roti": "bajra roti",
+    "whole_wheat_roti": "roti",
+    "chapati": "chapati",
+    "plain_curd": "dahi",
+    "cooked_dal": "dal",
+    "vegetable_sabzi": "sabzi",
+    "chai_with_sugar": "chai",
+    "chai_without_sugar": "chai",
+    "plain_idli": "idli",
+    "plain_dosa": "dosa",
+    "sambar": "sambar",
+    "fish_curry": "meen curry",
+    "shorshe_ilish": "shorshe ilish",
+    "macher_jhol": "macher jhol",
+    "mishti_doi": "mishti doi",
+    "rosogolla": "rosogolla",
+    "dal_bhat": "dal bhat",
+    "gotu_kola_salad": "gotu kola",
+    "hopper": "appa",
+    "string_hoppers": "idiyappam",
+}
+
+_GEO_PRIORITY: tuple[tuple[str, str, str], ...] = (
+    ("sri", "Sri Lanka", "sri_lanka"),
+    ("pak", "Pakistan", "pakistan"),
+    ("nepal", "Nepal", "nepal"),
+    ("south", "India", "south_india"),
+    ("east", "India", "east_india"),
+    ("north", "India", "north_india"),
+    ("west", "India", "west_india"),
+    ("western", "Western", "western"),
+)
 
 _PATTERN_ALLOW: dict[str, tuple[str, ...]] = {
     "south_indian_rice_idli_dosa_fish": ("shared", "south"),
@@ -487,6 +525,145 @@ class _Item:
     sugar: float
     gi: float
     tags: tuple[str, ...]
+    local_name: str
+    country: str
+    region: str
+    preparation_state: str
+    portion_g: float
+    energy_kcal: float
+    carbs_100g: float
+    protein_100g: float
+    fat_100g: float
+    fiber_100g: float
+    sodium_mg: float
+    calcium_mg: float
+    iron_mg: float
+    vitc_mg: float
+
+
+def _place(tags: tuple[str, ...]) -> tuple[str, str]:
+    found = set(tags)
+    for tag, country, region in _GEO_PRIORITY:
+        if tag in found:
+            return country, region
+    return "South Asia", "shared"
+
+
+def _local_name(name: str) -> str:
+    return _LOCAL_NAMES.get(name, name.replace("_", " "))
+
+
+def _preparation(name: str) -> str:
+    if name in {"scrambled_eggs", "bacon_and_eggs"}:
+        return "pan_cooked"
+    rules = (
+        ("boiled", "boiled"),
+        ("idli", "fermented"),
+        ("dosa", "fermented"),
+        ("dhokla", "fermented"),
+        ("khaman", "fermented"),
+        ("curd", "fermented"),
+        ("lassi", "fermented"),
+        ("yogurt", "fermented"),
+        ("buttermilk", "fermented"),
+        ("doi", "fermented"),
+        ("bhaja", "fried"),
+        ("fries", "fried"),
+        ("pakora", "fried"),
+        ("samosa", "fried"),
+        ("puri", "fried"),
+        ("luchi", "fried"),
+        ("vada", "fried"),
+        ("cutlet", "fried"),
+        ("chips", "fried"),
+        ("donut", "fried"),
+        ("fafda", "fried"),
+        ("grilled", "grilled"),
+        ("salad", "raw"),
+        ("guava", "raw"),
+        ("mango", "raw"),
+        ("banana", "raw"),
+        ("apple", "raw"),
+        ("orange", "raw"),
+        ("papaya", "raw"),
+        ("pomegranate", "raw"),
+        ("dates", "raw"),
+        ("bread", "baked"),
+        ("pizza", "baked"),
+        ("muffin", "baked"),
+        ("cookie", "baked"),
+        ("naan", "baked"),
+        ("roti", "griddled"),
+        ("paratha", "griddled"),
+        ("chapati", "griddled"),
+        ("thepla", "griddled"),
+        ("chai", "brewed"),
+        ("coffee", "brewed"),
+        ("tea", "brewed"),
+        ("soda", "bottled"),
+        ("juice", "extracted"),
+        ("rice", "steamed"),
+        ("idiyappam", "steamed"),
+        ("puttu", "steamed"),
+        ("dal", "boiled"),
+        ("egg", "boiled"),
+    )
+    for key, state in rules:
+        if key in name:
+            return state
+    return "cooked"
+
+
+def _portion_grams(name: str, tags: tuple[str, ...]) -> float:
+    if any(key in name for key in ("chai", "coffee", "tea", "milk", "lassi", "buttermilk", "soda", "juice", "latte", "energy_drink")):
+        return 150.0
+    if "sweet" in tags or any(key in name for key in ("mithai", "halwa", "laddu", "jalebi", "cookie", "donut", "chocolate", "mysore", "sandesh", "rosogolla")):
+        return 50.0
+    if any(key in name for key in ("roti", "chapati", "paratha", "naan", "puri", "luchi", "thepla", "bread")):
+        return 80.0
+    if any(key in name for key in ("rice", "biryani", "khichdi", "bhat", "pulao", "pongal", "bisibele", "kiribath")):
+        return 200.0
+    if any(key in name for key in ("banana", "mango", "apple", "orange", "guava", "papaya", "dates", "pomegranate")):
+        return 100.0
+    if "snack" in tags:
+        return 80.0
+    return 150.0
+
+
+def _micronutrients(name: str, tags: tuple[str, ...]) -> tuple[float, float, float, float]:
+    """Rounded serving estimates for sodium, calcium, iron, and vitamin C."""
+    sodium, calcium, iron, vitc = 250.0, 20.0, 0.8, 2.0
+    if any(key in name for key in ("milk", "curd", "lassi", "yogurt", "buttermilk", "paneer", "cheese", "doi", "rabri", "shrikhand", "kheer")):
+        calcium = 180.0
+    if any(key in name for key in ("saag", "gotu", "salad", "palak", "mallung")):
+        iron = 2.2
+        vitc = 18.0
+    if "guava" in name:
+        vitc = 90.0
+    elif "orange" in name or "lemon" in name:
+        vitc = 40.0
+    elif any(key in name for key in ("mango", "papaya", "tomato")):
+        vitc = 25.0
+    if any(tag in tags for tag in ("fish", "meat")) or any(key in name for key in ("chicken", "mutton", "beef", "egg", "fish", "prawn", "keema")):
+        iron = max(iron, 1.6)
+        sodium = 450.0
+    if any(key in name for key in ("samosa", "pakora", "fries", "chips", "bhaja", "fafda")):
+        sodium = 520.0
+    if "sweet" in tags and not any(key in name for key in ("milk", "doi", "kheer", "rabri", "shrikhand")):
+        sodium = 40.0
+        calcium = min(calcium, 30.0)
+    if any(key in name for key in ("peanut", "chana", "dal", "rajma", "chole")):
+        iron = max(iron, 2.0)
+    if name in {"black_coffee", "soda", "energy_drink"}:
+        sodium = 15.0 if name == "black_coffee" else 40.0
+        calcium = 5.0
+        iron = 0.1
+        vitc = 0.0
+    return sodium, calcium, iron, vitc
+
+
+def _per_100g(amount: float, portion_g: float) -> float:
+    return round(amount / portion_g * 100.0, 2)
 
 
 def _parse_bases(
@@ -526,20 +703,42 @@ def _expand_items(
 ) -> tuple[_Item, ...]:
     items: list[_Item] = []
     for name, cuisine, carbs, protein, fat, fiber, sugar, gi, tags in bases:
+        country, region = _place(tags)
+        sodium, calcium, iron, vitc = _micronutrients(name, tags)
+        regular_portion = _portion_grams(name, tags)
         for suffix, scale in _PORTIONS:
             item_name = name if suffix == "regular" else f"{name}_{suffix}"
+            scaled_carbs = round(carbs * scale, 1)
+            scaled_protein = round(protein * scale, 1)
+            scaled_fat = round(fat * scale, 1)
+            scaled_fiber = round(fiber * scale, 1)
+            portion_g = round(regular_portion * scale, 1)
             items.append(
                 _Item(
                     name=item_name,
                     base=name,
                     cuisine=cuisine,
-                    carbs=round(carbs * scale, 1),
-                    protein=round(protein * scale, 1),
-                    fat=round(fat * scale, 1),
-                    fiber=round(fiber * scale, 1),
+                    carbs=scaled_carbs,
+                    protein=scaled_protein,
+                    fat=scaled_fat,
+                    fiber=scaled_fiber,
                     sugar=round(sugar * scale, 1),
                     gi=gi,
                     tags=tags,
+                    local_name=_local_name(name),
+                    country=country,
+                    region=region,
+                    preparation_state=_preparation(name),
+                    portion_g=portion_g,
+                    energy_kcal=round(4.0 * scaled_carbs + 4.0 * scaled_protein + 9.0 * scaled_fat, 1),
+                    carbs_100g=_per_100g(scaled_carbs, portion_g),
+                    protein_100g=_per_100g(scaled_protein, portion_g),
+                    fat_100g=_per_100g(scaled_fat, portion_g),
+                    fiber_100g=_per_100g(scaled_fiber, portion_g),
+                    sodium_mg=round(sodium * scale, 1),
+                    calcium_mg=round(calcium * scale, 1),
+                    iron_mg=round(iron * scale, 2),
+                    vitc_mg=round(vitc * scale, 1),
                 )
             )
     return tuple(items)
@@ -585,6 +784,20 @@ class FoodCatalog:
     diet_slot_probs: np.ndarray
     region_probs: np.ndarray
     pattern_item_ids: tuple[tuple[int, ...], ...]
+    local_names: tuple[str, ...]
+    countries: tuple[str, ...]
+    regions: tuple[str, ...]
+    preparation_states: tuple[str, ...]
+    portion_g: np.ndarray
+    energy_kcal: np.ndarray
+    carbs_100g: np.ndarray
+    protein_100g: np.ndarray
+    fat_100g: np.ndarray
+    fiber_100g: np.ndarray
+    sodium_mg: np.ndarray
+    calcium_mg: np.ndarray
+    iron_mg: np.ndarray
+    vitc_mg: np.ndarray
 
 
 def _weight_table(items: tuple[_Item, ...], masks: list[np.ndarray]) -> np.ndarray:
@@ -647,6 +860,20 @@ def load_food_catalog() -> FoodCatalog:
         diet_slot_probs=_weight_table(items, masks),
         region_probs=region_probs,
         pattern_item_ids=tuple(tuple(int(index) for index in np.flatnonzero(mask)) for mask in masks),
+        local_names=tuple(item.local_name for item in items),
+        countries=tuple(item.country for item in items),
+        regions=tuple(item.region for item in items),
+        preparation_states=tuple(item.preparation_state for item in items),
+        portion_g=np.array([item.portion_g for item in items], dtype=np.float64),
+        energy_kcal=np.array([item.energy_kcal for item in items], dtype=np.float64),
+        carbs_100g=np.array([item.carbs_100g for item in items], dtype=np.float64),
+        protein_100g=np.array([item.protein_100g for item in items], dtype=np.float64),
+        fat_100g=np.array([item.fat_100g for item in items], dtype=np.float64),
+        fiber_100g=np.array([item.fiber_100g for item in items], dtype=np.float64),
+        sodium_mg=np.array([item.sodium_mg for item in items], dtype=np.float64),
+        calcium_mg=np.array([item.calcium_mg for item in items], dtype=np.float64),
+        iron_mg=np.array([item.iron_mg for item in items], dtype=np.float64),
+        vitc_mg=np.array([item.vitc_mg for item in items], dtype=np.float64),
     )
 
 
@@ -678,6 +905,22 @@ def food_record(index: int) -> dict[str, object]:
         "fiber_g": float(FOOD_CATALOG.fiber[index]),
         "added_sugar_g": float(FOOD_CATALOG.added_sugar[index]),
         "gi": float(FOOD_CATALOG.gi[index]),
+        "local_name": FOOD_CATALOG.local_names[index],
+        "country": FOOD_CATALOG.countries[index],
+        "region": FOOD_CATALOG.regions[index],
+        "preparation_state": FOOD_CATALOG.preparation_states[index],
+        "portion_g": float(FOOD_CATALOG.portion_g[index]),
+        "energy_kcal": float(FOOD_CATALOG.energy_kcal[index]),
+        "carbohydrate_g_100g": float(FOOD_CATALOG.carbs_100g[index]),
+        "protein_g_100g": float(FOOD_CATALOG.protein_100g[index]),
+        "fat_g_100g": float(FOOD_CATALOG.fat_100g[index]),
+        "fibre_g_100g": float(FOOD_CATALOG.fiber_100g[index]),
+        "sodium_mg": float(FOOD_CATALOG.sodium_mg[index]),
+        "calcium_mg": float(FOOD_CATALOG.calcium_mg[index]),
+        "iron_mg": float(FOOD_CATALOG.iron_mg[index]),
+        "vitc_mg": float(FOOD_CATALOG.vitc_mg[index]),
+        "estimation_method": ESTIMATION_METHOD,
+        "quality_flag": QUALITY_FLAG,
     }
 
 

@@ -77,6 +77,8 @@ Person-level columns:
 | `length`                                    | Number of foods in the log                             |
 | `y_class`                                   | Nutrition-adjustment label                             |
 | `y_value`                                   | Mean simulated 2-hour glucose over logged meals, mg/dL |
+| `estimation_method`                         | `simulator_estimate` for the added nutrition facts      |
+| `quality_flag`                              | `not_a_laboratory_assay`                                |
 
 
 Each of the next columns is a list with one entry per food, in the same order:
@@ -87,6 +89,11 @@ Each of the next columns is a list with one entry per food, in the same order:
 | `food_ids`                                                  | Item id in the catalog                   |
 | `cuisine`                                                   | 0 South Asian, 1 Western                 |
 | `carbs_g`, `protein_g`, `fat_g`, `fiber_g`, `added_sugar_g` | Serving macros                           |
+| `local_name`, `country`, `food_region`, `preparation_state` | Dish name, place, and how it is prepared |
+| `portion_g`                                                 | Eaten serving weight, grams              |
+| `energy_kcal`                                               | Energy for that serving, from the macros |
+| `carbohydrate_g_100g`, `protein_g_100g`, `fat_g_100g`, `fibre_g_100g` | The same macros per 100 g        |
+| `sodium_mg`, `calcium_mg`, `iron_mg`, `vitc_mg`             | Simulator estimates for that serving     |
 | `gi`                                                        | Glycemic index used by the simulator     |
 | `hours`                                                     | Clock hour of the meal                   |
 | `day_index`                                                 | Day in the log                           |

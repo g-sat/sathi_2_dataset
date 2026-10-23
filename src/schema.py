@@ -202,6 +202,20 @@ class GeneratedChunk:
     fiber_g: np.ndarray
     added_sugar_g: np.ndarray
     gi: np.ndarray
+    local_name: np.ndarray
+    country: np.ndarray
+    region: np.ndarray
+    preparation_state: np.ndarray
+    portion_g: np.ndarray
+    energy_kcal: np.ndarray
+    carbohydrate_g_100g: np.ndarray
+    protein_g_100g: np.ndarray
+    fat_g_100g: np.ndarray
+    fibre_g_100g: np.ndarray
+    sodium_mg: np.ndarray
+    calcium_mg: np.ndarray
+    iron_mg: np.ndarray
+    vitc_mg: np.ndarray
     hours: np.ndarray
     walk_minutes: np.ndarray
     observed: np.ndarray

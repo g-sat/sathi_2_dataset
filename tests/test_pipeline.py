@@ -16,7 +16,7 @@ from pydantic import ValidationError
 from torch.utils.data import DataLoader
 
 from src.dataset import NUMERIC_DIM, STATIC_DIM, SyntheticSequenceDataset, collate_sequences
-from src.foods import DIET_PATTERN_NAMES, FOOD_CATALOG, MAX_ITEMS, MIN_ITEMS, N_FOODS
+from src.foods import DIET_PATTERN_NAMES, ESTIMATION_METHOD, FOOD_CATALOG, MAX_ITEMS, MIN_ITEMS, N_FOODS, QUALITY_FLAG
 from src.generator import (
     MANIFEST_NAME,
     generate_chunk,
@@ -125,6 +125,22 @@ def test_generation_writes_split_directories_with_disjoint_ids(generated: Genera
         "fiber_g",
         "added_sugar_g",
         "gi",
+        "local_name",
+        "country",
+        "food_region",
+        "preparation_state",
+        "portion_g",
+        "energy_kcal",
+        "carbohydrate_g_100g",
+        "protein_g_100g",
+        "fat_g_100g",
+        "fibre_g_100g",
+        "sodium_mg",
+        "calcium_mg",
+        "iron_mg",
+        "vitc_mg",
+        "estimation_method",
+        "quality_flag",
         "hours",
         "walk_minutes",
         "observed",
@@ -145,6 +161,8 @@ def test_generation_writes_split_directories_with_disjoint_ids(generated: Genera
         table = pa.concat_tables([pq.read_table(path) for path in paths])
         assert table.num_rows == counts[split]
         assert expected_columns <= set(table.column_names)
+        assert set(table.column("estimation_method").to_pylist()) == {ESTIMATION_METHOD}
+        assert set(table.column("quality_flag").to_pylist()) == {QUALITY_FLAG}
         sequence_ids = table.column("sequence_id").to_numpy()
         id_sets[split] = set(sequence_ids.tolist())
         assert len(id_sets[split]) == table.num_rows
@@ -258,6 +276,17 @@ def test_each_diet_pattern_has_100_to_1000_individual_items() -> None:
     assert config.lengths.min_len == MIN_ITEMS
     assert config.lengths.max_len == MAX_ITEMS
     assert MIN_ITEMS <= N_FOODS <= MAX_ITEMS
+    assert FOOD_CATALOG.energy_kcal.shape == (N_FOODS,)
+    assert float(np.min(FOOD_CATALOG.portion_g)) > 0.0
+    kcal = 4.0 * FOOD_CATALOG.carbs + 4.0 * FOOD_CATALOG.protein + 9.0 * FOOD_CATALOG.fat
+    assert float(np.max(np.abs(FOOD_CATALOG.energy_kcal - kcal))) < 0.05
+    density = FOOD_CATALOG.carbs / FOOD_CATALOG.portion_g * 100.0
+    assert float(np.max(np.abs(FOOD_CATALOG.carbs_100g - density))) < 0.2
+    curd = FOOD_CATALOG.names.index("plain_curd")
+    rice = FOOD_CATALOG.names.index("steamed_white_rice")
+    guava = FOOD_CATALOG.names.index("guava")
+    assert float(FOOD_CATALOG.calcium_mg[curd]) > float(FOOD_CATALOG.calcium_mg[rice])
+    assert float(FOOD_CATALOG.vitc_mg[guava]) > float(FOOD_CATALOG.vitc_mg[rice])
     assert len(FOOD_CATALOG.pattern_item_ids) == len(DIET_PATTERN_NAMES)
     for item_ids in FOOD_CATALOG.pattern_item_ids:
         assert MIN_ITEMS <= len(item_ids) <= MAX_ITEMS

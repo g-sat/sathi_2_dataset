@@ -104,6 +104,20 @@ def validate_chunk(chunk: GeneratedChunk, config: DataConfig) -> None:
         "fiber_g",
         "added_sugar_g",
         "gi",
+        "local_name",
+        "country",
+        "region",
+        "preparation_state",
+        "portion_g",
+        "energy_kcal",
+        "carbohydrate_g_100g",
+        "protein_g_100g",
+        "fat_g_100g",
+        "fibre_g_100g",
+        "sodium_mg",
+        "calcium_mg",
+        "iron_mg",
+        "vitc_mg",
         "hours",
         "walk_minutes",
         "observed",
@@ -126,11 +140,40 @@ def validate_chunk(chunk: GeneratedChunk, config: DataConfig) -> None:
     if not np.array_equal(chunk.cuisine[valid].astype(np.int64), expected.astype(np.int64)):
         raise ChunkValidationError("cuisine flag does not match the food catalog")
 
-    for name in ("carbs_g", "protein_g", "fat_g", "fiber_g", "added_sugar_g", "walk_minutes"):
+    for name in (
+        "carbs_g",
+        "protein_g",
+        "fat_g",
+        "fiber_g",
+        "added_sugar_g",
+        "walk_minutes",
+        "portion_g",
+        "energy_kcal",
+        "carbohydrate_g_100g",
+        "protein_g_100g",
+        "fat_g_100g",
+        "fibre_g_100g",
+        "sodium_mg",
+        "calcium_mg",
+        "iron_mg",
+        "vitc_mg",
+    ):
         values = np.asarray(getattr(chunk, name), dtype=np.float64)
         _require_finite(name, values)
         if np.any(values[valid] < 0.0):
             raise ChunkValidationError(f"{name} has negative values")
+    expected_kcal = 4.0 * np.asarray(chunk.carbs_g) + 4.0 * np.asarray(chunk.protein_g) + 9.0 * np.asarray(chunk.fat_g)
+    if float(np.max(np.abs(np.asarray(chunk.energy_kcal) - expected_kcal))) > 0.05:
+        raise ChunkValidationError("energy_kcal does not match the serving macros")
+    for serving_name, per_100_name in (
+        ("carbs_g", "carbohydrate_g_100g"),
+        ("protein_g", "protein_g_100g"),
+        ("fat_g", "fat_g_100g"),
+        ("fiber_g", "fibre_g_100g"),
+    ):
+        density = np.asarray(getattr(chunk, serving_name), dtype=np.float64) / np.maximum(chunk.portion_g, 1e-6) * 100.0
+        if float(np.max(np.abs(density - np.asarray(getattr(chunk, per_100_name), dtype=np.float64)))) > 0.2:
+            raise ChunkValidationError(f"{per_100_name} does not match the serving and portion weight")
     gi = np.asarray(chunk.gi, dtype=np.float64)
     _require_finite("gi", gi)
     if np.any((gi[valid] < 0.0) | (gi[valid] > 100.0)):

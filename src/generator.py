@@ -15,7 +15,16 @@ import numpy as np
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from src.foods import ACTION_NAMES, DIET_PATTERNS, DISCLAIMER, FOOD_CATALOG, REGION_NAMES, food_record
+from src.foods import (
+    ACTION_NAMES,
+    DIET_PATTERNS,
+    DISCLAIMER,
+    ESTIMATION_METHOD,
+    FOOD_CATALOG,
+    QUALITY_FLAG,
+    REGION_NAMES,
+    food_record,
+)
 from src.schema import (
     SPLIT_NAMES,
     DataConfig,
@@ -112,6 +121,20 @@ def generate_chunk(config: DataConfig, *, start_id: int, n: int, rng: np.random.
     added_sugar_g = FOOD_CATALOG.added_sugar[food_ids] * portion
     gi = np.array(FOOD_CATALOG.gi[food_ids], dtype=np.float64, copy=True)
     cuisine = np.array(FOOD_CATALOG.cuisine[food_ids], dtype=np.int16, copy=True)
+    portion_g = FOOD_CATALOG.portion_g[food_ids] * portion
+    energy_kcal = 4.0 * carbs_g + 4.0 * protein_g + 9.0 * fat_g
+    local_name = np.asarray(FOOD_CATALOG.local_names, dtype=object)[food_ids]
+    country = np.asarray(FOOD_CATALOG.countries, dtype=object)[food_ids]
+    food_region = np.asarray(FOOD_CATALOG.regions, dtype=object)[food_ids]
+    preparation_state = np.asarray(FOOD_CATALOG.preparation_states, dtype=object)[food_ids]
+    sodium_mg = FOOD_CATALOG.sodium_mg[food_ids] * portion
+    calcium_mg = FOOD_CATALOG.calcium_mg[food_ids] * portion
+    iron_mg = FOOD_CATALOG.iron_mg[food_ids] * portion
+    vitc_mg = FOOD_CATALOG.vitc_mg[food_ids] * portion
+    carbohydrate_g_100g = np.array(FOOD_CATALOG.carbs_100g[food_ids], dtype=np.float64, copy=True)
+    protein_g_100g = np.array(FOOD_CATALOG.protein_100g[food_ids], dtype=np.float64, copy=True)
+    fat_g_100g = np.array(FOOD_CATALOG.fat_100g[food_ids], dtype=np.float64, copy=True)
+    fibre_g_100g = np.array(FOOD_CATALOG.fiber_100g[food_ids], dtype=np.float64, copy=True)
 
     slot = np.arange(width) % len(MEAL_SLOT_HOURS)
     hours = np.asarray(MEAL_SLOT_HOURS, dtype=np.float64)[slot][None, :] + rng.normal(0.0, 0.35, size=(n, width))
@@ -188,6 +211,20 @@ def generate_chunk(config: DataConfig, *, start_id: int, n: int, rng: np.random.
         fiber_g=fiber_g,
         added_sugar_g=added_sugar_g,
         gi=gi,
+        local_name=local_name,
+        country=country,
+        region=food_region,
+        preparation_state=preparation_state,
+        portion_g=portion_g,
+        energy_kcal=energy_kcal,
+        carbohydrate_g_100g=carbohydrate_g_100g,
+        protein_g_100g=protein_g_100g,
+        fat_g_100g=fat_g_100g,
+        fibre_g_100g=fibre_g_100g,
+        sodium_mg=sodium_mg,
+        calcium_mg=calcium_mg,
+        iron_mg=iron_mg,
+        vitc_mg=vitc_mg,
         hours=hours,
         walk_minutes=walk_minutes,
         observed=observed,
@@ -225,6 +262,15 @@ def assign_splits(sequence_id: np.ndarray, splits: SplitRatios) -> np.ndarray:
     return assignment
 
 
+def _string_list_array(values: np.ndarray, lengths: np.ndarray) -> pa.Array:
+    width = values.shape[1]
+    valid = np.arange(width)[None, :] < lengths[:, None]
+    flat = values[valid].tolist()
+    offsets = np.zeros(lengths.shape[0] + 1, dtype=np.int64)
+    np.cumsum(lengths, dtype=np.int64, out=offsets[1:])
+    return pa.ListArray.from_arrays(pa.array(offsets, type=pa.int64()), pa.array(flat, type=pa.string()))
+
+
 def _list_array(values: np.ndarray, lengths: np.ndarray, value_type: pa.DataType) -> pa.Array:
     width = values.shape[1]
     valid = np.arange(width)[None, :] < lengths[:, None]
@@ -255,12 +301,28 @@ def _table_for_rows(chunk: GeneratedChunk, row_index: np.ndarray) -> pa.Table:
             "fiber_g": _list_array(np.asarray(chunk.fiber_g[row_index], dtype=np.float32), lengths, pa.float32()),
             "added_sugar_g": _list_array(np.asarray(chunk.added_sugar_g[row_index], dtype=np.float32), lengths, pa.float32()),
             "gi": _list_array(np.asarray(chunk.gi[row_index], dtype=np.float32), lengths, pa.float32()),
+            "local_name": _string_list_array(chunk.local_name[row_index], lengths),
+            "country": _string_list_array(chunk.country[row_index], lengths),
+            "food_region": _string_list_array(chunk.region[row_index], lengths),
+            "preparation_state": _string_list_array(chunk.preparation_state[row_index], lengths),
+            "portion_g": _list_array(np.asarray(chunk.portion_g[row_index], dtype=np.float32), lengths, pa.float32()),
+            "energy_kcal": _list_array(np.asarray(chunk.energy_kcal[row_index], dtype=np.float32), lengths, pa.float32()),
+            "carbohydrate_g_100g": _list_array(np.asarray(chunk.carbohydrate_g_100g[row_index], dtype=np.float32), lengths, pa.float32()),
+            "protein_g_100g": _list_array(np.asarray(chunk.protein_g_100g[row_index], dtype=np.float32), lengths, pa.float32()),
+            "fat_g_100g": _list_array(np.asarray(chunk.fat_g_100g[row_index], dtype=np.float32), lengths, pa.float32()),
+            "fibre_g_100g": _list_array(np.asarray(chunk.fibre_g_100g[row_index], dtype=np.float32), lengths, pa.float32()),
+            "sodium_mg": _list_array(np.asarray(chunk.sodium_mg[row_index], dtype=np.float32), lengths, pa.float32()),
+            "calcium_mg": _list_array(np.asarray(chunk.calcium_mg[row_index], dtype=np.float32), lengths, pa.float32()),
+            "iron_mg": _list_array(np.asarray(chunk.iron_mg[row_index], dtype=np.float32), lengths, pa.float32()),
+            "vitc_mg": _list_array(np.asarray(chunk.vitc_mg[row_index], dtype=np.float32), lengths, pa.float32()),
             "hours": _list_array(np.asarray(chunk.hours[row_index], dtype=np.float32), lengths, pa.float32()),
             "walk_minutes": _list_array(np.asarray(chunk.walk_minutes[row_index], dtype=np.float32), lengths, pa.float32()),
             "observed": _list_array(np.asarray(chunk.observed[row_index], dtype=bool), lengths, pa.bool_()),
             "day_index": _list_array(np.asarray(chunk.day_index[row_index], dtype=np.int16), lengths, pa.int16()),
             "glucose_2h": _list_array(np.asarray(chunk.glucose_2h[row_index], dtype=np.float32), lengths, pa.float32()),
             "glucose_delta": _list_array(np.asarray(chunk.glucose_delta[row_index], dtype=np.float32), lengths, pa.float32()),
+            "estimation_method": pa.array([ESTIMATION_METHOD] * row_index.size, type=pa.string()),
+            "quality_flag": pa.array([QUALITY_FLAG] * row_index.size, type=pa.string()),
             "y_class": pa.array(chunk.y_class[row_index], type=pa.int8()),
             "y_value": pa.array(np.asarray(chunk.y_value[row_index], dtype=np.float32), type=pa.float32()),
         }
@@ -363,6 +425,14 @@ def _write_manifest(output_dir: Path, config: DataConfig, counts: dict[str, int]
             "day_index": "day in the patient log, four meals per day, in the same order as the foods",
             "glucose_2h": "simulated 2-hour glucose in mg/dL after each food, in time order",
             "glucose_delta": "glucose_2h minus that patient's fasting glucose, the simulated effect of that food",
+            "energy_kcal": "kcal for the eaten serving, 4 kcal/g carbohydrate and protein and 9 kcal/g fat",
+            "carbohydrate_g_100g": "carbohydrate per 100 g, from the serving and portion weight",
+            "sodium_mg": "simulator estimate of sodium in the eaten serving",
+            "calcium_mg": "simulator estimate of calcium in the eaten serving",
+            "iron_mg": "simulator estimate of iron in the eaten serving",
+            "vitc_mg": "simulator estimate of vitamin C in the eaten serving",
+            "estimation_method": ESTIMATION_METHOD,
+            "quality_flag": QUALITY_FLAG,
         },
     }
     destination = output_dir / MANIFEST_NAME

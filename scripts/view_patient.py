@@ -12,7 +12,7 @@ if str(ROOT) not in sys.path:
 
 import pandas as pd
 
-from src.foods import ACTION_NAMES, DIET_PATTERN_NAMES, FOOD_CATALOG, REGION_NAMES
+from src.foods import ACTION_NAMES, DIET_PATTERN_NAMES, ESTIMATION_METHOD, FOOD_CATALOG, QUALITY_FLAG, REGION_NAMES
 
 MEAL_NAMES = ("breakfast", "lunch", "snack", "dinner")
 DATA_ROOT = ROOT / "data" / "synthetic"
@@ -53,6 +53,20 @@ def _timeline(row: pd.Series) -> pd.DataFrame:
             "fiber_g": [round(float(item), 2) for item in row.fiber_g],
             "added_sugar_g": [round(float(item), 2) for item in row.added_sugar_g],
             "gi": [round(float(item), 1) for item in row.gi],
+            "local_name": list(row.local_name),
+            "country": list(row.country),
+            "food_region": list(row.food_region),
+            "preparation_state": list(row.preparation_state),
+            "portion_g": [round(float(item), 1) for item in row.portion_g],
+            "energy_kcal": [round(float(item), 1) for item in row.energy_kcal],
+            "carbohydrate_g_100g": [round(float(item), 2) for item in row.carbohydrate_g_100g],
+            "protein_g_100g": [round(float(item), 2) for item in row.protein_g_100g],
+            "fat_g_100g": [round(float(item), 2) for item in row.fat_g_100g],
+            "fibre_g_100g": [round(float(item), 2) for item in row.fibre_g_100g],
+            "sodium_mg": [round(float(item), 1) for item in row.sodium_mg],
+            "calcium_mg": [round(float(item), 1) for item in row.calcium_mg],
+            "iron_mg": [round(float(item), 2) for item in row.iron_mg],
+            "vitc_mg": [round(float(item), 1) for item in row.vitc_mg],
             "walk_minutes": [round(float(item), 1) for item in row.walk_minutes],
             "observed": [bool(item) for item in row.observed],
             "glucose_2h": [round(float(item), 2) for item in row.glucose_2h],
@@ -92,6 +106,7 @@ def main() -> None:
         f"mean 2-hour {float(row.y_value):.1f} mg/dL  action {action}"
     )
     print(f"meals {int(row.length)}  days {int(timeline['day'].iloc[-1]) + 1}")
+    print(f"nutrition facts {ESTIMATION_METHOD}  {QUALITY_FLAG}")
     print(timeline.head(args.head).to_string(index=False))
     print(f"full timeline: {destination}")
 
